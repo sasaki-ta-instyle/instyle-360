@@ -8,6 +8,13 @@
       "when": 1779152780099,
       "tag": "0000_easy_ozymandias",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779154266356,
+      "tag": "0001_wealthy_master_chief",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { getCurrentUser, listUsers } from "@/lib/test-mode";
+import { TestModeFooter } from "@/components/TestModeFooter";
 
 const SITE_URL = "https://app.instyle.group/instyle-360";
 const ASSETS = "https://app.instyle.group/_shared/static";
@@ -32,9 +34,27 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // テストモード中だけ、フッターのロール切替に必要な情報を取得する
+  // DB 未接続のときは静かに空にする
+  let footerUsers: { id: string; displayName: string; isAdmin: boolean }[] = [];
+  let currentUserId: string | null = null;
+  try {
+    const [me, all] = await Promise.all([getCurrentUser(), listUsers()]);
+    currentUserId = me?.id ?? null;
+    footerUsers = all
+      .map((u) => ({
+        id: u.id,
+        displayName: u.displayName ?? u.name ?? u.email,
+        isAdmin: u.isAdmin,
+      }))
+      .sort((a, b) => (a.isAdmin === b.isAdmin ? 0 : a.isAdmin ? -1 : 1));
+  } catch {
+    // schema 未適用などで失敗してもページ自体は描画する
+  }
+
   return (
     <html lang="ja">
       <head>
@@ -43,7 +63,12 @@ export default function RootLayout({
           href="https://cdn.jsdelivr.net/npm/gen-interface-jp@0.1.2/all.css"
         />
       </head>
-      <body>{children}</body>
+      <body style={{ paddingBottom: 80 }}>
+        {children}
+        {footerUsers.length > 0 ? (
+          <TestModeFooter users={footerUsers} currentUserId={currentUserId} />
+        ) : null}
+      </body>
     </html>
   );
 }
