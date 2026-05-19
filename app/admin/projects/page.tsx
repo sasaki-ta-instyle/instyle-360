@@ -53,9 +53,14 @@ export default async function AdminProjectsPage() {
         }}
       >
         <h1 className="t-h1">プロジェクト</h1>
-        <Link href="/admin/projects/new" className="btn btn-primary">
-          ＋ 新規プロジェクト
-        </Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href="/admin/question-sets" className="btn btn-secondary">
+            設問テンプレート
+          </Link>
+          <Link href="/admin/projects/new" className="btn btn-primary">
+            ＋ 新規プロジェクト
+          </Link>
+        </div>
       </header>
 
       {rows.length === 0 ? (
