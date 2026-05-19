@@ -13,11 +13,15 @@ function buildPool(): Pool {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set");
   }
+  // 既定は厳格モード（rejectUnauthorized: true）。
+  // Neon の pooler は valid CA のため OK だが、自己署名証明書を使う環境では
+  // DATABASE_REJECT_UNAUTHORIZED="false" で緩める。
+  const reject = process.env.DATABASE_REJECT_UNAUTHORIZED !== "false";
   return new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL.includes("localhost")
       ? undefined
-      : { rejectUnauthorized: false },
+      : { rejectUnauthorized: reject },
   });
 }
 

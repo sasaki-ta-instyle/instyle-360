@@ -1,15 +1,10 @@
-import { Resend } from "resend";
-
-const FROM = process.env.MAIL_FROM ?? "instyle 360 <noreply@instyle.group>";
-
-let _client: Resend | null = null;
-function client() {
-  if (_client) return _client;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY is not set");
-  _client = new Resend(key);
-  return _client;
-}
+/**
+ * NextAuth Email Provider 用のマジックリンクメール送信。
+ * 本番認証に戻したときに呼ばれる。テストモード中は呼ばれない（auth bypass のため）。
+ *
+ * 実送信 / ログのみは lib/mail/deliver.ts の deliver() が一手に判定する。
+ */
+import { deliver } from "@/lib/mail/deliver";
 
 export async function sendMagicLinkEmail(params: {
   to: string;
@@ -57,15 +52,5 @@ export async function sendMagicLinkEmail(params: {
     </div>
   `;
 
-  const result = await client().emails.send({
-    from: FROM,
-    to,
-    subject,
-    text,
-    html,
-  });
-  if (result.error) {
-    throw new Error(`Resend send failed: ${result.error.message}`);
-  }
-  return result.data;
+  return await deliver({ to, subject, html, text });
 }

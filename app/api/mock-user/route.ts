@@ -1,13 +1,16 @@
 /**
  * テスト用: 現在のロール（mock user）を切り替えるためのエンドポイント。
- * POST { userId } で cookie `mock_user_id` を更新する。
+ * `TEST_MODE !== "1"` のときは 404 を返して何もしない。
  */
 import { NextResponse } from "next/server";
-import { MOCK_USER_COOKIE } from "@/lib/test-mode";
+import { MOCK_USER_COOKIE, isTestMode } from "@/lib/test-mode";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  if (!isTestMode()) {
+    return new NextResponse(null, { status: 404 });
+  }
   const body = await req.json().catch(() => ({}));
   const userId = typeof body?.userId === "string" ? body.userId : null;
   if (!userId) {

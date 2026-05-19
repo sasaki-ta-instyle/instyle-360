@@ -1,16 +1,10 @@
 /**
  * 評価サイクル中に送るメール通知。
- *
- * モード:
- *   - EMAIL_MODE=send  ... Resend で実送信
- *   - それ以外（既定）  ... コンソールに出力するだけ。Vercel の Function Logs で内容を確認できる
- *
- * テストモード中はサンプルユーザーの架空メアドにメールを送りたくないので、既定は log。
+ * 実送信 / ログのみの切替は lib/mail/deliver.ts の deliver() に一元化済み。
  */
-import { Resend } from "resend";
+import { deliver, getEmailMode } from "@/lib/mail/deliver";
 
-const FROM = process.env.MAIL_FROM ?? "instyle 360 <noreply@instyle.group>";
-const MODE = (process.env.EMAIL_MODE ?? "log").toLowerCase();
+export { getEmailMode };
 
 function baseUrl(): string {
   if (process.env.BASE_URL) return process.env.BASE_URL;
@@ -19,41 +13,6 @@ function baseUrl(): string {
   }
   if (process.env.AUTH_URL) return process.env.AUTH_URL;
   return "http://localhost:3009";
-}
-
-let _client: Resend | null = null;
-function client() {
-  if (_client) return _client;
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY is not set");
-  _client = new Resend(key);
-  return _client;
-}
-
-type MailSpec = {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-};
-
-async function deliver(m: MailSpec): Promise<{ delivered: boolean; via: string }> {
-  if (MODE !== "send") {
-    // log only
-    console.log(
-      `[mail:log] to=${m.to} subject=${m.subject} (Resend skipped because EMAIL_MODE != "send")`,
-    );
-    return { delivered: false, via: "log" };
-  }
-  const res = await client().emails.send({
-    from: FROM,
-    to: m.to,
-    subject: m.subject,
-    text: m.text,
-    html: m.html,
-  });
-  if (res.error) throw new Error(`Resend: ${res.error.message}`);
-  return { delivered: true, via: "resend" };
 }
 
 const wrap = (inner: string) => `
@@ -155,10 +114,6 @@ export async function sendClosingNotice(args: {
     <p>${args.projectName} の回答受付を締め切りました。<br/>${args.subjectName} さんの 360 評価が確定されます。</p>
   `);
   return await deliver({ to: args.to, subject, html, text });
-}
-
-export function getEmailMode(): "send" | "log" {
-  return MODE === "send" ? "send" : "log";
 }
 
 function relationLabel(r: string): string {

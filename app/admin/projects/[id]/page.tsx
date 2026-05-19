@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/test-mode";
 import { db } from "@/db/client";
 import { projects, subjects, raters, users } from "@/db/schema";
-import { eq, and, notInArray } from "drizzle-orm";
+import { eq, and, notInArray, inArray } from "drizzle-orm";
 import {
   sendInvitation,
   sendReminder,
@@ -18,6 +18,23 @@ function randomToken(): string {
   return [...crypto.getRandomValues(new Uint8Array(16))]
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+type Relation = "self" | "boss" | "peer" | "subordinate" | "other";
+type ProjectStatus = "draft" | "open" | "closed" | "archived";
+
+function parseRelation(v: unknown): Relation {
+  const s = String(v ?? "");
+  if (s === "self" || s === "boss" || s === "peer" || s === "subordinate" || s === "other") {
+    return s;
+  }
+  return "peer";
+}
+
+function parseProjectStatus(v: unknown): ProjectStatus | null {
+  const s = String(v ?? "");
+  if (s === "draft" || s === "open" || s === "closed" || s === "archived") return s;
+  return null;
 }
 
 type SearchParams = Promise<{
@@ -76,9 +93,9 @@ export default async function AdminProjectDetailPage({
         displayName: users.displayName,
       })
       .from(raters)
-      .innerJoin(users, eq(raters.userId, users.id));
+      .innerJoin(users, eq(raters.userId, users.id))
+      .where(inArray(raters.subjectId, subjectIds));
     for (const r of fullList) {
-      if (!subjectIds.includes(r.subjectId)) continue;
       const list = ratersBySubject.get(r.subjectId) ?? [];
       list.push(r);
       ratersBySubject.set(r.subjectId, list);
@@ -147,7 +164,7 @@ export default async function AdminProjectDetailPage({
     const pid = Number(formData.get("projectId"));
     const sid = Number(formData.get("subjectId"));
     const userId = String(formData.get("userId") ?? "");
-    const relation = String(formData.get("relation") ?? "peer");
+    const relation = parseRelation(formData.get("relation"));
     if (!pid || !sid || !userId) return;
     await db
       .insert(raters)
@@ -176,8 +193,8 @@ export default async function AdminProjectDetailPage({
   async function setStatus(formData: FormData) {
     "use server";
     const pid = Number(formData.get("projectId"));
-    const next = String(formData.get("status") ?? "");
-    if (!pid || !["draft", "open", "closed", "archived"].includes(next)) return;
+    const next = parseProjectStatus(formData.get("status"));
+    if (!pid || !next) return;
 
     const prj = await db.query.projects.findFirst({ where: eq(projects.id, pid) });
     if (!prj) return;

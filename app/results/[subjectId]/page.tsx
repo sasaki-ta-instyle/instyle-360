@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/db/client";
 import {
   subjects,
@@ -10,8 +10,9 @@ import {
   raters,
   answers,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { RadarChart, type RadarSeries } from "@/components/RadarChart";
+import { getCurrentUser } from "@/lib/test-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,14 @@ export default async function ResultsPage({
     where: eq(subjects.id, subjectId),
   });
   if (!subject) notFound();
+
+  // ── アクセス制御: 本人 or admin のみ ──
+  const me = await getCurrentUser();
+  if (!me) redirect("/sign-in");
+  if (!me.isAdmin && me.id !== subject.userId) {
+    // 連番 URL 総当たりを防ぐ。他人の結果は見せない
+    notFound();
+  }
 
   const project = await db.query.projects.findFirst({
     where: eq(projects.id, subject.projectId),
@@ -51,19 +60,22 @@ export default async function ResultsPage({
     );
   }
 
-  // categories + questions
+  // categories
   const allCats = await db.query.categories.findMany({
     where: eq(categories.questionSetId, project.questionSetId),
     orderBy: (c, { asc }) => [asc(c.orderIndex)],
   });
   const catIds = allCats.map((c) => c.id);
-  const allQs = await db.query.questions.findMany({
-    orderBy: (q, { asc }) => [asc(q.orderIndex)],
-  });
-  const qInThisSet = allQs.filter((q) => catIds.includes(q.categoryId));
+
+  // questions（このテンプレに紐づくものだけ DB 側で絞る）
+  const qInThisSet = catIds.length
+    ? await db.query.questions.findMany({
+        where: inArray(questions.categoryId, catIds),
+        orderBy: (q, { asc }) => [asc(q.orderIndex)],
+      })
+    : [];
   const scaleQs = qInThisSet.filter((q) => q.responseType === "scale");
   const freeQs = qInThisSet.filter((q) => q.responseType === "free_text");
-  // レーダー軸はスケール質問を 1 件以上含むカテゴリのみ
   const scaleCatIds = new Set(scaleQs.map((q) => q.categoryId));
   const cats = allCats.filter((c) => scaleCatIds.has(c.id));
 
@@ -72,23 +84,23 @@ export default async function ResultsPage({
     where: eq(raters.subjectId, subjectId),
   });
   const ratersById = new Map(subjectRaters.map((r) => [r.id, r]));
-
-  // answers
   const rIds = subjectRaters.map((r) => r.id);
-  const allAns = rIds.length > 0
-    ? await db.query.answers.findMany({})
-    : [];
-  const subjectAns = allAns.filter((a) => rIds.includes(a.raterId));
 
-  // 集計: category × relation_group
-  // groups: self / others_all
+  // answers — DB 側で raterId を絞る
+  const subjectAns = rIds.length
+    ? await db.query.answers.findMany({
+        where: inArray(answers.raterId, rIds),
+      })
+    : [];
+
+  // 集計
   type Acc = { sum: number; count: number };
   function emptyAcc(): Acc {
     return { sum: 0, count: 0 };
   }
   const selfByCat = new Map<number, Acc>();
   const othersByCat = new Map<number, Acc>();
-  const othersRatersByCat = new Map<number, Set<number>>(); // n を rater 単位で数える
+  const othersRatersByCat = new Map<number, Set<number>>();
 
   for (const a of subjectAns) {
     if (a.scaleValue == null) continue;
@@ -119,7 +131,7 @@ export default async function ResultsPage({
     const a = othersByCat.get(c.id);
     const distinctRaters = (othersRatersByCat.get(c.id) ?? new Set()).size;
     if (!a || a.count === 0) return null;
-    if (distinctRaters < N_MIN) return null; // 匿名性: n<3 はマスク
+    if (distinctRaters < N_MIN) return null;
     return Number((a.sum / a.count).toFixed(2));
   });
 
@@ -131,7 +143,7 @@ export default async function ResultsPage({
     {
       label: "自己評価",
       values: selfValues,
-      color: "var(--color-info)", // #38537B
+      color: "var(--color-info)",
       fillOpacity: 0.12,
     },
     {
@@ -142,8 +154,15 @@ export default async function ResultsPage({
     },
   ];
 
-  // コメント抜粋 (free_text)
-  const comments = subjectAns
+  // コメント抜粋 (free_text) — rater 情報付きで保持
+  type CommentRow = {
+    id: number;
+    raterId: number;
+    relation: string;
+    text: string;
+    qBody: string;
+  };
+  const comments: CommentRow[] = subjectAns
     .filter((a) => a.textValue && a.textValue.trim().length > 0)
     .filter((a) => freeQs.some((q) => q.id === a.questionId))
     .filter((a) => {
@@ -153,13 +172,22 @@ export default async function ResultsPage({
     .map((a) => {
       const r = ratersById.get(a.raterId)!;
       const q = freeQs.find((qq) => qq.id === a.questionId)!;
-      return { id: a.id, relation: r.relation, text: a.textValue!, qBody: q.body };
+      return {
+        id: a.id,
+        raterId: r.id,
+        relation: r.relation,
+        text: a.textValue!,
+        qBody: q.body,
+      };
     });
 
-  // 匿名性: 他者コメントは relation のみ。relation 内に n<N_MIN なら relation も伏せる
-  const relationCounts = new Map<string, number>();
+  // 匿名性: relation ごとの DISTINCT rater 数で n を測る
+  // （複数の自由記述設問に同一 rater が書くと、件数ベースだと膨らんで n<3 をすり抜けるため）
+  const ratersByRelation = new Map<string, Set<number>>();
   for (const c of comments) {
-    relationCounts.set(c.relation, (relationCounts.get(c.relation) ?? 0) + 1);
+    const s = ratersByRelation.get(c.relation) ?? new Set<number>();
+    s.add(c.raterId);
+    ratersByRelation.set(c.relation, s);
   }
 
   return (
@@ -264,8 +292,11 @@ export default async function ResultsPage({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {comments.map((c) => {
-              const cnt = relationCounts.get(c.relation) ?? 0;
-              const showRelation = cnt >= N_MIN ? relationLabel(c.relation) : "匿名（少数のため関係も伏せています）";
+              const distinctRaters = ratersByRelation.get(c.relation)?.size ?? 0;
+              const showRelation =
+                distinctRaters >= N_MIN
+                  ? relationLabel(c.relation)
+                  : "匿名（少数のため関係も伏せています）";
               return (
                 <div key={c.id} className="card">
                   <p className="eyebrow" style={{ marginBottom: 6 }}>
@@ -292,7 +323,7 @@ export default async function ResultsPage({
           className="t-caption"
           style={{ color: "var(--color-text-light)", textAlign: "center" }}
         >
-          匿名性ルール: 各カテゴリ・関係内で n &lt; {N_MIN} のときは平均値・関係名をマスクします。
+          匿名性ルール: 各カテゴリ・関係内で n &lt; {N_MIN}（distinct rater 数）のときは平均値・関係名をマスクします。
         </p>
       </footer>
     </main>

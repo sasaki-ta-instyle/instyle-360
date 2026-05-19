@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { getCurrentUser, listUsers } from "@/lib/test-mode";
+import { getCurrentUser, listUsers, isTestMode } from "@/lib/test-mode";
 import { TestModeFooter } from "@/components/TestModeFooter";
 
 const SITE_URL = "https://app.instyle.group/instyle-360";
@@ -38,21 +38,23 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   // テストモード中だけ、フッターのロール切替に必要な情報を取得する
-  // DB 未接続のときは静かに空にする
+  // 本番モード（TEST_MODE != "1"）ではフッターは出さない
   let footerUsers: { id: string; displayName: string; isAdmin: boolean }[] = [];
   let currentUserId: string | null = null;
-  try {
-    const [me, all] = await Promise.all([getCurrentUser(), listUsers()]);
-    currentUserId = me?.id ?? null;
-    footerUsers = all
-      .map((u) => ({
-        id: u.id,
-        displayName: u.displayName ?? u.name ?? u.email,
-        isAdmin: u.isAdmin,
-      }))
-      .sort((a, b) => (a.isAdmin === b.isAdmin ? 0 : a.isAdmin ? -1 : 1));
-  } catch {
-    // schema 未適用などで失敗してもページ自体は描画する
+  if (isTestMode()) {
+    try {
+      const [me, all] = await Promise.all([getCurrentUser(), listUsers()]);
+      currentUserId = me?.id ?? null;
+      footerUsers = all
+        .map((u) => ({
+          id: u.id,
+          displayName: u.displayName ?? u.name ?? u.email,
+          isAdmin: u.isAdmin,
+        }))
+        .sort((a, b) => (a.isAdmin === b.isAdmin ? 0 : a.isAdmin ? -1 : 1));
+    } catch {
+      // schema 未適用などで失敗してもページ自体は描画する
+    }
   }
 
   return (

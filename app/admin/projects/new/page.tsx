@@ -12,6 +12,7 @@ export default async function AdminProjectsNewPage() {
   if (!me?.isAdmin) {
     redirect("/me");
   }
+  const meId = me.id;
 
   const qsets = await db.query.questionSets.findMany({
     orderBy: (q, { desc: d }) => [d(q.createdAt)],
@@ -31,7 +32,7 @@ export default async function AdminProjectsNewPage() {
         description,
         status: "draft",
         questionSetId,
-        createdByUserId: (await getCurrentUser())?.id ?? null,
+        createdByUserId: meId,
         opensAt: new Date(),
         closesAt: closesAt ? new Date(closesAt) : null,
       })

@@ -10,7 +10,7 @@ import {
   questions,
   answers,
 } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -56,21 +56,28 @@ export default async function AnswerPage({
     );
   }
 
-  // 2) categories + questions
+  // 2) categories + questions（DB 側で絞る）
   const cats = await db.query.categories.findMany({
     where: eq(categories.questionSetId, project.questionSetId),
     orderBy: (c, { asc }) => [asc(c.orderIndex)],
   });
-  const allQuestions = await db.query.questions.findMany({
-    orderBy: (q, { asc }) => [asc(q.orderIndex)],
-  });
+  const catIds = cats.map((c) => c.id);
+  const allQuestions = catIds.length
+    ? await db.query.questions.findMany({
+        where: inArray(questions.categoryId, catIds),
+        orderBy: (q, { asc }) => [asc(q.orderIndex)],
+      })
+    : [];
   const questionsByCat = new Map<number, typeof allQuestions>();
   for (const q of allQuestions) {
-    if (!cats.some((c) => c.id === q.categoryId)) continue;
     const list = questionsByCat.get(q.categoryId) ?? [];
     list.push(q);
     questionsByCat.set(q.categoryId, list);
   }
+
+  // このプロジェクトで保存を許す質問 ID のホワイトリスト
+  // 他プロジェクトの question ID を偽装したリクエストを弾くために使う
+  const validQuestionIds = new Set(allQuestions.map((q) => q.id));
 
   // 3) 既存の answers
   const existing = await db.query.answers.findMany({
@@ -82,8 +89,11 @@ export default async function AnswerPage({
   // ── server actions ───────────────────────
   async function saveDraft(formData: FormData) {
     "use server";
-    await persistAnswers({ raterId: rater!.id, formData });
-    // 状態を in_progress に
+    await persistAnswers({
+      raterId: rater!.id,
+      formData,
+      validQuestionIds,
+    });
     await db
       .update(raters)
       .set({ status: rater!.status === "submitted" ? "submitted" : "in_progress" })
@@ -93,7 +103,11 @@ export default async function AnswerPage({
 
   async function submitFinal(formData: FormData) {
     "use server";
-    await persistAnswers({ raterId: rater!.id, formData });
+    await persistAnswers({
+      raterId: rater!.id,
+      formData,
+      validQuestionIds,
+    });
     await db
       .update(raters)
       .set({ status: "submitted", submittedAt: new Date() })
@@ -226,8 +240,15 @@ export default async function AnswerPage({
   );
 }
 
-async function persistAnswers({ raterId, formData }: { raterId: number; formData: FormData }) {
-  // entries() を回して scale_* / text_* を upsert
+async function persistAnswers({
+  raterId,
+  formData,
+  validQuestionIds,
+}: {
+  raterId: number;
+  formData: FormData;
+  validQuestionIds: Set<number>;
+}) {
   const tasks: Promise<unknown>[] = [];
   for (const [k, vRaw] of formData.entries()) {
     const v = String(vRaw);
@@ -242,14 +263,14 @@ async function persistAnswers({ raterId, formData }: { raterId: number; formData
     } else if (k.startsWith("text_")) {
       qid = Number(k.slice(5));
       text = v.trim();
-      if (text.length === 0) {
-        // 空なら既存があれば削除も考えうるが、Phase 1 はシンプルに何もしない
-        continue;
-      }
+      if (text.length === 0) continue;
     } else {
       continue;
     }
     if (!qid) continue;
+
+    // 別プロジェクトの question_id を偽装したリクエストを弾く
+    if (!validQuestionIds.has(qid)) continue;
 
     tasks.push(
       (async () => {
@@ -333,7 +354,6 @@ function ScaleField({
 }
 
 function scaleLabel(v: number, min: number, max: number): string {
-  // 5 段階前提のラベル
   if (max - min === 4) {
     return ["全くそう思わない", "あまりそう思わない", "どちらでもない", "そう思う", "強くそう思う"][v - min];
   }

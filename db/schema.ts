@@ -66,7 +66,9 @@ export const questions = pgTable(
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
-    responseType: text("response_type").notNull().default("scale"), // scale | free_text
+    responseType: text("response_type", { enum: ["scale", "free_text"] })
+      .notNull()
+      .default("scale"),
     scaleMin: integer("scale_min").notNull().default(1),
     scaleMax: integer("scale_max").notNull().default(5),
     orderIndex: integer("order_index").notNull().default(0),
@@ -85,7 +87,9 @@ export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
-  status: text("status").notNull().default("draft"), // draft|open|closed|archived
+  status: text("status", { enum: ["draft", "open", "closed", "archived"] })
+    .notNull()
+    .default("draft"),
   questionSetId: integer("question_set_id").references(() => questionSets.id, {
     onDelete: "set null",
   }),
@@ -133,8 +137,12 @@ export const raters = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    relation: text("relation").notNull(), // self | boss | peer | subordinate | other
-    status: text("status").notNull().default("invited"), // invited | in_progress | submitted
+    relation: text("relation", {
+      enum: ["self", "boss", "peer", "subordinate", "other"],
+    }).notNull(),
+    status: text("status", { enum: ["invited", "in_progress", "submitted"] })
+      .notNull()
+      .default("invited"),
     token: text("token").notNull().unique(),
     invitedAt: timestamp("invited_at", { withTimezone: true }).notNull().defaultNow(),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),

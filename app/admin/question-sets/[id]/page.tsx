@@ -141,21 +141,23 @@ export default async function QuestionSetEditorPage({
             orderBy: (c, { asc: a }) => [a(c.orderIndex)],
           });
     if (!neighbor) {
-      redirect(`/admin/question-sets/${qid}`);
+      return redirect(`/admin/question-sets/${qid}`);
     }
-    // swap order
-    await db
-      .update(categories)
-      .set({ orderIndex: -1 - current.id })
-      .where(eq(categories.id, current.id));
-    await db
-      .update(categories)
-      .set({ orderIndex: current.orderIndex })
-      .where(eq(categories.id, neighbor!.id));
-    await db
-      .update(categories)
-      .set({ orderIndex: neighbor!.orderIndex })
-      .where(eq(categories.id, current.id));
+    // 2 ステップで直接スワップ。
+    // orderIndex に UNIQUE 制約がないので一時値は不要。
+    // トランザクションで中断時の半端状態を防ぐ。
+    const currentOrder = current.orderIndex;
+    const neighborOrder = neighbor.orderIndex;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(categories)
+        .set({ orderIndex: neighborOrder })
+        .where(eq(categories.id, current.id));
+      await tx
+        .update(categories)
+        .set({ orderIndex: currentOrder })
+        .where(eq(categories.id, neighbor.id));
+    });
     revalidatePath(`/admin/question-sets/${qid}`);
     redirect(`/admin/question-sets/${qid}?focus=c-${cid}`);
   }
@@ -242,20 +244,20 @@ export default async function QuestionSetEditorPage({
             orderBy: (c, { asc: a }) => [a(c.orderIndex)],
           });
     if (!neighbor) {
-      redirect(`/admin/question-sets/${qid}`);
+      return redirect(`/admin/question-sets/${qid}`);
     }
-    await db
-      .update(questions)
-      .set({ orderIndex: -1 - cur.id })
-      .where(eq(questions.id, cur.id));
-    await db
-      .update(questions)
-      .set({ orderIndex: cur.orderIndex })
-      .where(eq(questions.id, neighbor!.id));
-    await db
-      .update(questions)
-      .set({ orderIndex: neighbor!.orderIndex })
-      .where(eq(questions.id, cur.id));
+    const currentOrder = cur.orderIndex;
+    const neighborOrder = neighbor.orderIndex;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(questions)
+        .set({ orderIndex: neighborOrder })
+        .where(eq(questions.id, cur.id));
+      await tx
+        .update(questions)
+        .set({ orderIndex: currentOrder })
+        .where(eq(questions.id, neighbor.id));
+    });
     revalidatePath(`/admin/question-sets/${qid}`);
     redirect(`/admin/question-sets/${qid}?focus=c-${cur.categoryId}`);
   }
