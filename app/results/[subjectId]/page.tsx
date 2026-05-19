@@ -52,17 +52,20 @@ export default async function ResultsPage({
   }
 
   // categories + questions
-  const cats = await db.query.categories.findMany({
+  const allCats = await db.query.categories.findMany({
     where: eq(categories.questionSetId, project.questionSetId),
     orderBy: (c, { asc }) => [asc(c.orderIndex)],
   });
-  const catIds = cats.map((c) => c.id);
+  const catIds = allCats.map((c) => c.id);
   const allQs = await db.query.questions.findMany({
     orderBy: (q, { asc }) => [asc(q.orderIndex)],
   });
   const qInThisSet = allQs.filter((q) => catIds.includes(q.categoryId));
   const scaleQs = qInThisSet.filter((q) => q.responseType === "scale");
   const freeQs = qInThisSet.filter((q) => q.responseType === "free_text");
+  // レーダー軸はスケール質問を 1 件以上含むカテゴリのみ
+  const scaleCatIds = new Set(scaleQs.map((q) => q.categoryId));
+  const cats = allCats.filter((c) => scaleCatIds.has(c.id));
 
   // raters
   const subjectRaters = await db.query.raters.findMany({
