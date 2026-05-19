@@ -183,13 +183,33 @@ GitHub Actions 失敗時は workflow が自動ロールバックする。
 
 ---
 
-## 5. 残タスク / 未実装の挙動
+## 5. 進捗 / 残タスク（2026-05-19 時点）
 
-新規プロジェクトでは空。Phase が進むたびにここを埋める。
+### 完了
+
+- Phase 0（土台 / 認証バイパス / Neon 接続 / Vercel デプロイ）
+- Phase 1（コアフロー骨格 + 管理 UI + メール通知の log/send 切替）
+- 設問テンプレ 11 Philosophy v1（Google Sheet `1GZ9w8Rw_gxtEcS5XdxLa14O1f6W62gIm` 由来、35 問）を seed 投入
+- 設問テンプレ編集 UI（カテゴリ・設問の追加・編集・並び替え・削除・複製）
+- Codex 外部レビュー 8 件対応（test-mode ゲート、results アクセス制御、questionId 帰属検証、メール gate、N+1 解消、orderIndex transaction、コメント匿名化 distinct rater、enum 化）
+
+### 未着手 / 残作業
 
 | # | 内容 | 状態 |
 |---|---|---|
-|  |  |  |
+| 1 | Vercel Deployment Protection 解除（社員に共有する前に必須） | ユーザー操作待ち |
+| 2 | Phase 2: PDF / Excel 出力（個人 / サマリ） | 未着手 |
+| 3 | Phase 2: サマリ集計（部門別 / ポジション別） | 未着手 |
+| 4 | 本番認証（NextAuth Email Provider）への戻し | 未着手 |
+| 5 | 設問編集 UI の DnD 並び替え・バージョニング運用 | Low |
+| 6 | ConoHa 本番への切替（現在は Vercel + Neon で運用中） | 未定 |
+
+### 重要な実装メモ
+
+- **TEST_MODE**: Vercel Production env に `TEST_MODE=1` を必須化。外すと全画面 redirect。本番認証戻し時に `TEST_MODE=1` を撤去 + `lib/test-mode.ts` を `auth()` に差し替え
+- **EMAIL_MODE**: 既定 `log`。実送信したいときだけ `EMAIL_MODE=send`。`MAIL_ALLOWED_DOMAINS=instyle.group` で送信先ドメイン制限あり
+- **アクセス制御**: `/results/[subjectId]` は admin or 本人のみ。`/answer/[token]` は token を知っていれば誰でも入れる（招待者本人へのリンク前提）
+- **匿名性**: `ANONYMITY_MIN_RESPONSES=3`、distinct rater 単位で n をカウント
 
 ---
 
