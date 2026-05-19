@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3009",
-    "build": "next build",
+    "build": "tsx db/migrate.ts && next build",
     "start": "next start -p 3009",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
