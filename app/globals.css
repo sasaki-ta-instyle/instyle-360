@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+/*
+ * instyle.group Flat Design System
+ * 出典: ~/Workspace/design-system/design.md
+ * - コントラスト主義（背景色の段差で区切る、border を構造的に使わない）
+ * - 8px グリッド、Gen Interface JP / Display
+ */
+
+:root {
+  /* Backgrounds */
+  --color-bg:          #FFFFFF;
+  --color-surface:     #F3F1EE;
+  --color-surface-2:   #E6E2D7;
+  --color-surface-3:   #E1DCD0;
+
+  /* Borders（構造区切りには使わない。可視性が決定的に下がるときの例外のみ） */
+  --color-border:      #C4C1B0;
+  --color-border-dark: #82837A;
+
+  /* Text */
+  --color-text:         #35362D;
+  --color-text-muted:   #82837A;
+  --color-text-light:   #C4C1B0;
+  --color-text-inverse: #F3F1EE;
+
+  /* Accent */
+  --color-accent:       #C4C1B0;
+  --color-accent-light: #82837A;
+  --color-accent-dark:  #E6E2D7;
+
+  /* Status */
+  --color-success:     #7BB785;
+  --color-warning:     #D4772C;
+  --color-error:       #C6292C;
+  --color-info:        #38537B;
+
+  /* Highlight — 本文内ポイントマーキング専用 */
+  --color-highlight:   #E2DD2A;
+
+  /* Radius */
+  --r-sm:   8px;
+  --r:      12px;
+  --r-lg:   20px;
+  --r-xl:   28px;
+  --r-pill: 999px;
+
+  /* Squircle */
+  --corner-shape:      superellipse(2.5);
+
+  /* Type */
+  --font-sans:    'Gen Interface JP', system-ui, -apple-system, 'Helvetica Neue', 'Hiragino Sans', sans-serif;
+  --font-display: 'Gen Interface JP Display', 'Gen Interface JP', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Menlo', monospace;
+
+  /* Motion */
+  --ease-out:   250ms cubic-bezier(.4,0,.2,1);
+  --ease-spring: 380ms cubic-bezier(.34,1.56,.64,1);
+}
+
+* { corner-shape: var(--corner-shape); }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  background: var(--color-bg);
+  scroll-behavior: smooth;
+  font-size: 14px; /* base 14, Major Third 1.25 */
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  font-feature-settings: "palt";
+  line-height: 1.7;
+  letter-spacing: .01em;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* type scale: base 14 / MS 1.25 */
+.t-display { font-size: 2.441rem; line-height: 1.15; }   /* ~43px */
+.t-h1      { font-size: 1.953rem; line-height: 1.2;  }   /* ~34px */
+.t-h2      { font-size: 1.563rem; line-height: 1.25; }   /* ~27px */
+.t-h3      { font-size: 1.25rem;  line-height: 1.3;  }   /* ~22px */
+.t-h4      { font-size: 1.125rem; line-height: 1.4;  }   /* ~18px */
+.t-body    { font-size: 1rem;     line-height: 1.7;  }   /*  14px */
+.t-small   { font-size: 0.786rem; line-height: 1.6;  }   /* ~11px */
+.t-caption { font-size: 0.643rem; line-height: 1.4;  }   /*  ~9px */
+
+/* tracked sans (eyebrow / 強調見出し) */
+.eyebrow {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-text-muted);
+}
+
+/* マーカー */
+mark, .mark {
+  background: linear-gradient(180deg, transparent 60%, var(--color-highlight) 60%);
+  padding: 0 2px;
+  color: inherit;
+}
+
+/* surface ヘルパー */
+.surface  { background: var(--color-surface); }
+.surface-2 { background: var(--color-surface-2); }
+.surface-3 { background: var(--color-surface-3); }
+
+/* カード（border / shadow なし。surface の段差だけで浮かせる） */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--r);
+  padding: 24px;
+}
+.card-nested {
+  background: var(--color-surface-2);
+  border-radius: var(--r-sm);
+  padding: 16px;
+}
+
+/* ボタン */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--r-pill);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  letter-spacing: .01em;
+  cursor: pointer;
+  border: none;
+  transition: all var(--ease-out);
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary {
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+}
+.btn-primary:hover { background: #2a2b24; }
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.btn-secondary:hover { background: var(--color-surface-2); }
+
+/* フォーム入力（border は最小限。surface のコントラストでブロックを区切る） */
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color var(--ease-out);
+}
+.input:focus { border-color: var(--color-text); }
+.input::placeholder { color: var(--color-text-light); }
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+label.field > .field-label {
+  font-size: 0.786rem;
+  color: var(--color-text-muted);
+  letter-spacing: .04em;
+}
+
+/* リンク */
+a { color: var(--color-text); text-decoration: underline; text-underline-offset: 2px; }
+a:hover { color: var(--color-info); }
